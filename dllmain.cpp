@@ -210,6 +210,29 @@ private:
     std::atomic_bool closed_{false};
 };
 
+// ==================================================
+// Auth token (obfuscated via XOR)
+// Lihat tools/generate_token.py untuk generate ulang
+// ==================================================
+static const unsigned char RGC_AUTH_TOKEN_ENC[] = {
+    0x38, 0x6D, 0x63, 0x6B, 0x6E, 0x3F, 0x39, 0x69, 0x3B, 0x69, 0x69, 0x39, 0x6A, 0x39, 0x6B, 0x63,
+    0x6A, 0x6A, 0x6F, 0x62, 0x3B, 0x69, 0x3E, 0x6E, 0x63, 0x3F, 0x6D, 0x6A, 0x62, 0x6B, 0x38, 0x38,
+    0x6E, 0x68, 0x6D, 0x62, 0x62, 0x6F, 0x6E, 0x6B, 0x6D, 0x6C, 0x62, 0x6F, 0x6E, 0x6A, 0x6F, 0x3B,
+    0x69, 0x6D, 0x69, 0x6B, 0x3B, 0x63, 0x3C, 0x3C, 0x6A, 0x6A, 0x3E, 0x3E, 0x3E, 0x6D, 0x38, 0x68,
+};
+static const size_t RGC_AUTH_TOKEN_LEN = sizeof(RGC_AUTH_TOKEN_ENC);
+static const unsigned char RGC_AUTH_KEY = 0x5A;
+
+static std::string decode_auth_token() {
+    std::string result;
+    result.reserve(RGC_AUTH_TOKEN_LEN);
+    for (size_t i = 0; i < RGC_AUTH_TOKEN_LEN; ++i) {
+        result.push_back(static_cast<char>(RGC_AUTH_TOKEN_ENC[i] ^ RGC_AUTH_KEY));
+    }
+    return result;
+}
+
+static std::atomic_bool g_auth_failed{false};
 static std::unique_ptr<WsClient> g_ws = nullptr;
 static ConnState g_state = ConnState::Disconnected;
 static uint64_t g_frame_count = 0;
@@ -764,6 +787,9 @@ static bool initialize_imgui() {
 // Chat network tick
 // ==================================================
 static void chat_network_tick() {
+    if (g_auth_failed.load()) {
+        return;
+    }
     if (g_state == ConnState::Disconnected &&
         std::chrono::steady_clock::now() >= g_next_reconnect_time) {
         try_connect();
@@ -820,6 +846,14 @@ static void chat_network_tick() {
             } else if (type == "error") {
                 const std::string error_msg = j.value("msg", "");
                 API::get()->log_warn("[RGC] <- server error: %s", error_msg.c_str());
+                
+                // Auth failure = don't auto-reconnect (prevent spam)
+                if (error_msg.find("token") != std::string::npos ||
+                    error_msg.find("Auth") != std::string::npos ||
+                    error_msg.find("auth") != std::string::npos) {
+                    g_auth_failed.store(true);
+                    API::get()->log_error("[RGC] Auth failed — auto-reconnect disabled. Check token in DLL.");
+                }
             } else if (type == "system") {
                 add_system_message(j.value("channel", g_current_channel), j.value("msg", ""));
             } else if (type == "channel_created") {
@@ -885,9 +919,9 @@ static void chat_network_tick() {
         json j;
         j["type"] = "hello";
         j["name"] = g_player_name;
+        j["token"] = decode_auth_token();
         g_ws->send(j.dump());
         g_hello_sent = true;
-        g_state_since_frame = g_frame_count;  // reset timer: welcome timeout dihitung dari saat WS open
         API::get()->log_info("[RGC] -> hello sent (WS open)");
     }
 
@@ -1252,7 +1286,7 @@ extern "C" __declspec(dllexport) bool reframework_plugin_initialize(
     auto& api = API::get();
 
     api->log_info("====================================================");
-    api->log_info("[RGC] Rise Global Chat v0.6.0 - IXWebSocket (WSS)");
+    api->log_info("[RGC] Rise Global Chat v0.6.2 - auth + per-IP security");
     api->log_info("[RGC] Compiled against API %d.%d.%d",
         REFRAMEWORK_PLUGIN_VERSION_MAJOR,
         REFRAMEWORK_PLUGIN_VERSION_MINOR,

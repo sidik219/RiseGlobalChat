@@ -15,6 +15,31 @@ versioning based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.6.2] — 2026-10-26
+
+### Added
+- **Auth token validation** — server requires a valid token during `hello` handshake. Clients without valid token are rejected and disconnected.
+- **Per-IP connection limit** — max 3 simultaneous connections per public IP address. Prevents one IP from opening many connections.
+- **Per-IP failed auth rate limit** — max 10 failed auth attempts per 5 minutes per IP. Prevents brute-force token guessing.
+- **Multi-token support** — server reads `RGC_AUTH_TOKEN` as comma-separated list, enabling zero-downtime token rotation.
+- **`tools/generate_token.py`** — helper script to generate random 64-char token + XOR-encoded C++ array.
+- **Auth failure guard** — client stops auto-reconnect after auth failure (prevents reconnect spam).
+
+### Changed
+- `server.py` — v0.8 (security hardened, was v0.7).
+- `dllmain.cpp` — added auth token to `hello` message, added auth failure detection.
+- `test_client_v2.py` — reads token from `RGC_TOKEN` env var, exits on auth failure.
+
+### Security
+- Token plaintext stored **only** in Render env var (server) and `set RGC_AUTH_TOKEN=...` (local test). Never committed to Git.
+- Token obfuscated in DLL via XOR (key `0x5A`). Not cryptographically secure, but prevents `strings` scan and casual extraction.
+
+### Notes
+- **Default limits:** `MAX_CONNECTIONS_PER_IP = 3`, `MAX_FAILED_AUTH_PER_IP = 10/5min`, `AUTH_TOKENS` = 1 (single token).
+- **Token rotation procedure** (only if token leaks): see `server.py` comment `RGC_AUTH_TOKEN=token1,token2,token3` for rotation window.
+
+---
+
 ## [0.6.1] — 2026-10-25
 
 ### Fixed

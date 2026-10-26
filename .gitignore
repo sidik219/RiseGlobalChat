@@ -35,3 +35,6 @@ Desktop.ini
 # Third-party deprecated (sudah migrate ke IXWebSocket)
 thirdparty/easywsclient.cpp
 thirdparty/easywsclient.hpp
+
+#Other
+tools/generate_token.py
