@@ -808,7 +808,21 @@ static void chat_network_tick() {
                 ChatEntry entry;
                 entry.sender = j.value("sender", "?");
                 entry.text = j.value("message", "");
-                entry.timestamp = j.value("timestamp", "");
+
+                // Convert Unix timestamp to local time (v0.6.3)
+                // Fallback to legacy string for old server (v0.8)
+                if (j.contains("timestamp_unix") && j["timestamp_unix"].is_number_integer()) {
+                    int64_t unix_ts = j["timestamp_unix"].get<int64_t>();
+                    time_t t = static_cast<time_t>(unix_ts);
+                    struct tm local_tm;
+                    localtime_s(&local_tm, &t);
+                    char time_buf[16];
+                    std::strftime(time_buf, sizeof(time_buf), "%H:%M:%S", &local_tm);
+                    entry.timestamp = time_buf;
+                } else {
+                    entry.timestamp = j.value("timestamp", "");
+                }
+
                 entry.is_self = (entry.sender == g_player_name);
                 const std::string ch = j.value("channel", "global");
                 {
@@ -1286,7 +1300,7 @@ extern "C" __declspec(dllexport) bool reframework_plugin_initialize(
     auto& api = API::get();
 
     api->log_info("====================================================");
-    api->log_info("[RGC] Rise Global Chat v0.6.2 - auth + per-IP security");
+    api->log_info("[RGC] Rise Global Chat v0.6.3 - local timezone support");
     api->log_info("[RGC] Compiled against API %d.%d.%d",
         REFRAMEWORK_PLUGIN_VERSION_MAJOR,
         REFRAMEWORK_PLUGIN_VERSION_MINOR,

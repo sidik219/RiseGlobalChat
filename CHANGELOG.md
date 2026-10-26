@@ -15,6 +15,25 @@ versioning based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.6.3] — 2026-10-26
+
+### Added
+- **Local timezone support** — chat timestamps now display in each player's local time, not server time (WIB/UTC). Client converts Unix timestamp via `localtime_s`.
+
+### Changed
+- `server.py` — v0.9: chat payload includes `timestamp_unix` (integer Unix epoch) alongside legacy `timestamp` (WIB string). Backward compatible.
+- `dllmain.cpp` — parse `timestamp_unix` and convert to local time. Falls back to legacy `timestamp` string if missing.
+
+### Backward Compatibility
+- Client v0.6.2 (auth-only) still works — sees legacy `timestamp` string (WIB)
+- Client v0.6.3 sees local time (e.g., JST for Japanese, PST for US)
+
+### Notes
+- Server logs `RGC Chat Server v0.9` (was v0.8)
+- Client logs `v0.6.3` (was v0.6.2)
+
+---
+
 ## [0.6.2] — 2026-10-26
 
 ### Added
