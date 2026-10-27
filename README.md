@@ -10,9 +10,11 @@ server setup is required for players.
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)
 ![License](https://img.shields.io/badge/license-GPLv3-blue)
 
-## ⚠️ Early Access — Capacity Limited
-This mod is in early access. The backend supports up to ~50 concurrent players.
-VPS migration in progress for higher capacity. Star/watch this repo for updates.
+## Server Status
+
+The backend runs on a dedicated VPS (Ubuntu, Nginx + Let's Encrypt SSL) with capacity for **up to 200 concurrent players**. No bandwidth limit.
+
+If you see "Server penuh" in the panel, the server has reached capacity — please try again later or report it on GitHub Issues.
 
 ## Features
 
