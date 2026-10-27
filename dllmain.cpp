@@ -90,7 +90,7 @@ using namespace reframework;
 using json = nlohmann::json;
 
 // --- Constants ---
-static const char* SERVER_URL = "wss://rgc-server.onrender.com";
+static const char* SERVER_URL = "wss://shyrly.duckdns.org";
 static std::string g_player_name = "Hunter";
 static const uint64_t WELCOME_TIMEOUT_FRAMES = 600;
 static const uint64_t PING_INTERVAL_FRAMES = 600;
@@ -1300,7 +1300,7 @@ extern "C" __declspec(dllexport) bool reframework_plugin_initialize(
     auto& api = API::get();
 
     api->log_info("====================================================");
-    api->log_info("[RGC] Rise Global Chat v0.6.3 - local timezone support");
+    api->log_info("[RGC] Rise Global Chat v0.6.4 - VPS dedicated server");
     api->log_info("[RGC] Compiled against API %d.%d.%d",
         REFRAMEWORK_PLUGIN_VERSION_MAJOR,
         REFRAMEWORK_PLUGIN_VERSION_MINOR,

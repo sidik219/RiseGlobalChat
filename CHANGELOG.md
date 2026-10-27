@@ -15,6 +15,24 @@ versioning based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.6.4] — 2026-10-27
+
+### Changed
+- **Migrated backend** from Render free tier to dedicated VPS (IDCloudHost)
+- Server URL: `wss://shyrly.duckdns.org` (was `wss://rgc-server.onrender.com`)
+- Nginx reverse proxy + Let's Encrypt SSL (auto-renew via Certbot)
+- No bandwidth limit, higher concurrent capacity
+- Server reads `X-Forwarded-For` header for accurate per-IP limits behind Nginx
+
+### Breaking
+- v0.6.3 will stop working — download v0.6.4
+
+### Notes
+- VPS: Ubuntu 26.04 LTS, Nginx 1.28.3, Certbot 4.0.0
+- Ping/pong verified 8/8, chat 2-way working, local timezone preserved
+
+---
+
 ## [0.6.3] — 2026-10-26
 
 ### Added
