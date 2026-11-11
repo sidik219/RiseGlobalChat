@@ -251,6 +251,10 @@ static std::chrono::steady_clock::time_point g_connected_since_time;
 static std::string g_current_channel = "global";
 static std::vector<std::string> g_joined_channels = {"global"};
 static std::set<std::string> g_owned_channels;
+// v0.6.5: Private chat
+static std::map<std::string, std::string> g_dm_peer_map;
+static char g_pending_dm_target[64] = {0};
+static bool g_show_dm_modal = false;
 static std::map<std::string, std::vector<ChatEntry>> g_channel_logs;
 static std::mutex g_channel_logs_mutex;
 
@@ -614,6 +618,25 @@ static void add_system_message(const std::string& channel, const std::string& ms
     g_should_scroll = true;
 }
 
+static bool is_dm_channel(const std::string& ch) {
+    return ch.rfind("dm_", 0) == 0;
+}
+
+static std::string dm_display_name(const std::string& ch) {
+    auto it = g_dm_peer_map.find(ch);
+    if (it != g_dm_peer_map.end()) return "@" + it->second;
+    return "@" + ch;
+}
+
+static void send_private_chat_start(const char* target_name) {
+    if (!g_ws || g_state != ConnState::Connected) return;
+    json j;
+    j["type"] = "private_chat_start";
+    j["target"] = target_name;
+    g_ws->send(j.dump());
+    API::get()->log_info("[RGC] -> private_chat_start: %s", target_name);
+}
+
 static void send_raw_chat(const std::string& channel, const std::string& text) {
     if (!g_ws || g_state != ConnState::Connected) {
         API::get()->log_warn("[RGC] Cannot send chat: not connected");
@@ -674,6 +697,14 @@ static bool try_parse_command(const std::string& text) {
     if (name == "rgcj") {
         if (arg.empty()) { add_system_message(g_current_channel, "Usage: /rgcj <nama>"); return true; }
         send_channel_join(arg);
+        return true;
+    }
+    if (name == "rgcp") {
+        if (arg.empty()) {
+            add_system_message(g_current_channel, "Usage: /rgcp <nama>");
+            return true;
+        }
+        send_private_chat_start(arg.c_str());
         return true;
     }
     return false;
@@ -848,6 +879,7 @@ static void chat_network_tick() {
                     g_joined_channels.push_back("global");
                     g_current_channel = "global";
                     g_owned_channels.clear();
+                    g_dm_peer_map.clear();
                     if (was_custom) {
                         g_chat_mode.store(false);
                         g_clear_input_requested.store(true);
@@ -877,6 +909,16 @@ static void chat_network_tick() {
                     g_joined_channels.push_back(ch);
                 g_current_channel = ch;
                 add_system_message(ch, "Channel #" + ch + " dibuat. Kamu sekarang di sini.");
+            } else if (type == "private_chat_started") {
+                const std::string ch = j.value("channel", "");
+                const std::string peer = j.value("peer", "");
+                g_dm_peer_map[ch] = peer;
+                if (std::find(g_joined_channels.begin(), g_joined_channels.end(), ch) == g_joined_channels.end())
+                    g_joined_channels.push_back(ch);
+                g_current_channel = ch;
+                g_chat_mode.store(false);
+                add_system_message(ch, "Private chat dengan @" + peer + " dimulai.");
+                API::get()->log_info("[RGC] Private chat started: %s with %s", ch.c_str(), peer.c_str());
             } else if (type == "channel_joined") {
                 const std::string ch = j.value("name", "");
                 if (std::find(g_joined_channels.begin(), g_joined_channels.end(), ch) == g_joined_channels.end())
@@ -886,6 +928,7 @@ static void chat_network_tick() {
             } else if (type == "channel_left") {
                 const std::string ch = j.value("name", "");
                 g_owned_channels.erase(ch);
+                g_dm_peer_map.erase(ch);
                 g_joined_channels.erase(
                     std::remove(g_joined_channels.begin(), g_joined_channels.end(), ch),
                     g_joined_channels.end());
@@ -897,6 +940,7 @@ static void chat_network_tick() {
             } else if (type == "channel_disbanded") {
                 const std::string ch = j.value("channel", "");
                 g_owned_channels.erase(ch);
+                g_dm_peer_map.erase(ch);
                 g_joined_channels.erase(
                     std::remove(g_joined_channels.begin(), g_joined_channels.end(), ch),
                     g_joined_channels.end());
@@ -1027,11 +1071,19 @@ static void draw_ui() {
         ImGui::BeginChild("##tabs", ImVec2(0, 32), false);
         for (const auto& ch : g_joined_channels) {
             const bool is_current = (ch == g_current_channel);
-            if (is_current) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.5f, 0.8f, 1.0f));
-            char label[64];
-            snprintf(label, sizeof(label), "#%s", ch.c_str());
-            if (ImGui::Button(label)) g_current_channel = ch;
-            if (is_current) ImGui::PopStyleColor();
+            const bool is_dm = is_dm_channel(ch);
+            std::string display_label;
+            if (is_dm) display_label = dm_display_name(ch);
+            else if (ch == "global") display_label = "#Global";
+            else display_label = "#" + ch;
+
+            if (is_dm) {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.85f, 0.7f, 0.2f, is_current ? 1.0f : 0.65f));
+            } else if (is_current) {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.3f, 0.5f, 0.8f, 1.0f));
+            }
+            if (ImGui::Button(display_label.c_str())) g_current_channel = ch;
+            if (is_dm || is_current) ImGui::PopStyleColor();
 
             if (ch != "global") {
                 ImGui::SameLine(0, 2);
@@ -1088,13 +1140,41 @@ static void draw_ui() {
                     ImGui::TextColored(ImVec4(0.6f, 0.85f, 1.0f, 1.0f),
                         "[%s] %s: %s", e.timestamp.c_str(), e.sender.c_str(), e.text.c_str());
                 } else {
-                    ImGui::Text("[%s] %s: %s",
-                        e.timestamp.c_str(), e.sender.c_str(), e.text.c_str());
+                    ImGui::Text("[%s]", e.timestamp.c_str());
+                    ImGui::SameLine();
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.85f, 1.0f, 1.0f));
+                    ImGui::TextUnformatted(e.sender.c_str());
+                    ImGui::PopStyleColor();
+                    if (ImGui::IsItemHovered()) {
+                        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                        if (ImGui::IsMouseClicked(0)) {
+                            strncpy_s(g_pending_dm_target, sizeof(g_pending_dm_target), e.sender.c_str(), _TRUNCATE);
+                            g_show_dm_modal = true;
+                        }
+                    }
+                    ImGui::SameLine();
+                    ImGui::Text(": %s", e.text.c_str());
                 }
             }
         }
         if (g_should_scroll) { ImGui::SetScrollHereY(1.0f); g_should_scroll = false; }
         ImGui::EndChild();
+
+        if (g_show_dm_modal) {
+            ImGui::OpenPopup("##dm_popup");
+            g_show_dm_modal = false;
+        }
+        if (ImGui::BeginPopup("##dm_popup")) {
+            ImGui::Text("User: @%s", g_pending_dm_target);
+            ImGui::Separator();
+            if (ImGui::MenuItem("Private Chat")) {
+                send_private_chat_start(g_pending_dm_target);
+            }
+            if (ImGui::MenuItem("Copy Name")) {
+                ImGui::SetClipboardText(g_pending_dm_target);
+            }
+            ImGui::EndPopup();
+        }
 
         // ===== INPUT =====
         if (g_set_focus) { ImGui::SetKeyboardFocusHere(); g_set_focus = false; }
@@ -1300,7 +1380,7 @@ extern "C" __declspec(dllexport) bool reframework_plugin_initialize(
     auto& api = API::get();
 
     api->log_info("====================================================");
-    api->log_info("[RGC] Rise Global Chat v0.6.4 - VPS dedicated server");
+    api->log_info("[RGC] Rise Global Chat v0.6.5 - private chat");
     api->log_info("[RGC] Compiled against API %d.%d.%d",
         REFRAMEWORK_PLUGIN_VERSION_MAJOR,
         REFRAMEWORK_PLUGIN_VERSION_MINOR,

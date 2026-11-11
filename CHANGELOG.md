@@ -15,6 +15,39 @@ versioning based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.6.5] — 2026-11-11
+
+### Added
+- **Private chat (DM)** — 1-on-1 conversation between any two connected players
+  - Click any username in chat to open popup menu → "Private Chat"
+  - Or use `/rgcp <name>` command in chat input
+  - DM tab displays as `@PeerName` in yellow/gold color
+  - Auto-switch to DM tab when initiated or received
+- **Name collision handling** — auto-suffix `#N` (Alice, Alice#2, Alice#3) when multiple players share the same Steam name
+  - System message notifies the affected player
+- **Rate limit DM start** — 1 DM start per 10 seconds (prevents spam)
+- **Max 2 concurrent DM** per player (prevents tab explosion)
+- **`/rgcp <name>` command** — text-based DM creation alternative to popup menu
+
+### Changed
+- `server.py` — v0.9.1 (DM support, was v0.9)
+- `dllmain.cpp` — v0.6.5 (private chat UI + handler)
+- `test_client_v2.py` — added `/rgdm <name>` command for CLI testing
+
+### Behavior
+- **DM close**: clicking `x` on DM tab, `/rgcl` command, or partner disconnect → DM disbanded for both users with system notification
+- **DM privacy**: DM channels do NOT appear in `/rgc` list, cannot be joined via `/rgcj`
+- **Name suffix**: temporary per session — suffix resets when player reconnects
+
+### Breaking
+- None — backward compatible with v0.6.4 clients (but v0.6.5 required for DM feature)
+
+### Notes
+- Server logs: `+ DM dm_<a>_<b> created` and `- DM dm_<a>_<b> closed`
+- DM channel name is deterministic (sorted pair) — clicking both directions converge to same channel
+
+---
+
 ## [0.6.4] — 2026-10-27
 
 ### Changed

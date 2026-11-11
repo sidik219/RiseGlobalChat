@@ -2,7 +2,7 @@
 
 Cross-platform global chat overlay for **Monster Hunter Rise**. Chat with other hunters in real-time via dedicated VPS backend (WSS/TLS) — no port forwarding, no dedicated server needed.
 
-![Version](https://img.shields.io/badge/version-0.6.4-blue)
+![Version](https://img.shields.io/badge/version-0.6.5-blue)
 ![REFramework](https://img.shields.io/badge/REFramework-Nightly%2001433%2B-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
@@ -23,9 +23,10 @@ If you see "Server penuh" in the panel, the server has reached capacity — plea
 
 - **#Global** — auto-join public channel
 - **Custom channels** — up to 2 per owner, max 10 members per channel
+- **Private Chat (DM)** — click any username → 1-on-1 conversation (max 2 concurrent)
 - **Owner disband** — owner leaves → channel disbanded, members back to #Global
 - **Tab bar** — switch between channels with 1 click
-- **Per-channel isolation** — messages in #global don't leak to custom channels
+- **Per-channel isolation** — messages in #global don't leak to custom channels or DM
 
 ### Networking
 
@@ -60,6 +61,8 @@ If you see "Server penuh" in the panel, the server has reached capacity — plea
   `/rgcc <name>`                      Create a custom channel
 
   `/rgcj <name>`                      Join a channel by name
+
+  `/rgcp <name>`                      Private chat with player (or click username)
 
   `(x)` on a channel tab              Leave a channel; leaving as owner
                                       disbands it
