@@ -1,72 +1,91 @@
 # Rise Global Chat (RGC)
 
-Cross-platform global chat overlay for **Monster Hunter Rise**. Chat with other hunters in real-time via dedicated VPS backend (WSS/TLS) — no port forwarding, no dedicated server needed.
+**Rise Global Chat (RGC)** is a global chat overlay for **Monster Hunter Rise (Steam / PC)**. It allows RGC users to communicate in real time through a shared WebSocket server, even when they are not in the same in-game lobby.
 
-![Version](https://img.shields.io/badge/version-0.6.5-blue)
+RGC connects to its hosted backend over **WSS/TLS**. Players do not need to configure port forwarding or host their own server.
+
+![Version](https://img.shields.io/badge/version-0.6.6-blue)
 ![REFramework](https://img.shields.io/badge/REFramework-Nightly%2001433%2B-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
+
+> **Release status:** v0.6.6 is the planned Public Beta release. The previous v0.6.5 release introduced Private Chat (DM). Confirm the DLL version and release package contents before publishing this README.
 
 ---
 
 ## Server Status
 
-The backend runs on a dedicated VPS (Ubuntu, Nginx + Let's Encrypt SSL) with capacity for **up to 200 concurrent players**. No bandwidth limit.
+RGC uses a hosted VPS backend. Public WebSocket traffic is routed through Cloudflare Tunnel.
 
-If you see "Server penuh" in the panel, the server has reached capacity — please try again later or report it on GitHub Issues.
+- **Production endpoint:** `wss://chat.riseglobalchat.my.id`
+- **Protocol:** WebSocket Secure (WSS) over TLS
+- **Server platform:** Ubuntu Linux
+
+The service is provided as-is. No fixed concurrent-player capacity, unlimited-bandwidth claim, uptime guarantee, or service-level commitment is advertised. Actual capacity depends on server resources, network conditions, and usage.
+
+If RGC cannot connect, check your internet connection and review the troubleshooting section before reporting the issue.
 
 ---
 
 ## Features
 
-### Chat and channels
+### Chat and Channels
 
-- **#Global** — auto-join public channel
-- **Custom channels** — up to 2 per owner, max 10 members per channel
-- **Private Chat (DM)** — click any username → 1-on-1 conversation (max 2 concurrent)
-- **Owner disband** — owner leaves → channel disbanded, members back to #Global
-- **Tab bar** — switch between channels with 1 click
-- **Per-channel isolation** — messages in #global don't leak to custom channels or DM
+- **Global Chat** — clients join the public `#global` channel after successful authentication.
+- **Custom Channels** — create or join named chat channels.
+- **Custom Channel Limits** — up to 2 custom channels per owner and up to 10 members per channel.
+- **Private Chat (DM)** — start a one-to-one conversation with another connected player.
+- **DM Limits** — up to 2 active DM sessions per player, with a 10-second cooldown between DM creation requests.
+- **Unique Display Names** — duplicate player names are assigned suffixes such as `#2` or `#3`.
+- **Owner Disband** — when a custom-channel owner leaves, the channel is disbanded and its members return to `#global`.
+- **Channel Tabs** — switch between active channels in the overlay.
+- **Channel Isolation** — messages are routed to the relevant public channel, custom channel, or DM rather than broadcast to unrelated channels.
+- **DM Lifecycle** — a DM is closed when either participant disconnects.
 
 ### Networking
 
-- **WSS/TLS** — encrypted connection to `wss://shyrly.duckdns.org` (dedicated VPS + Let's Encrypt SSL)
-- **Auto-reconnect** — exponential backoff (1s → 2s → 4s → ... → 60s cap) with jitter 50–150%
-- **Multi-client** — up to 200 concurrent users per server
-- **Cross-region** — no port forwarding needed
-- **Auth token** — secure handshake, no unauthorized access
-- **Per-IP limit** — max 3 concurrent connections per public IP
-- **Cross-network verified** — HP (Termux, mobile data) ↔ PC game tested
+- **WSS/TLS** — encrypted connection to the RGC production endpoint.
+- **Server Authentication** — clients must complete the server's authentication handshake before using chat features.
+- **Automatic Reconnection** — exponential backoff with jitter; the delay increases up to a configured maximum.
+- **Lobby-Independent Chat** — message routing is handled by the RGC server, not by Monster Hunter Rise lobby membership.
+- **Cross-Network Communication** — users can communicate through the internet from different network connections.
 
-### Overlay and controls
+### Overlay and Controls
 
-- **ImGui overlay** — panel can drag, collapse, close
-- **Real-time** — messages appear without delay (<100ms typical)
-- **Input bleed fixed** — character does NOT move while typing in chat mode
-- **Local timezone** — chat timestamps in your local time (v0.6.3+)
+- **ImGui Overlay** — in-game chat panel provided by the REFramework plugin.
+- **Panel Controls** — show or hide the panel and interact with chat through the overlay.
+- **Keyboard Chat Mode** — open the chat input, send a message, and exit chat mode using the documented keys below.
+- **Local Timestamps** — message timestamps are displayed using the client's local timezone.
 
-  -----------------------------------------------------------------------
-  Key / command                       Action
-  ----------------------------------- -----------------------------------
-  `/`                                 Open chat mode and focus the input
+---
 
-  `Enter`                             Send the message
+## Controls and Commands
 
-  `Esc`                               Exit chat mode
+### Keyboard Controls
 
-  `F8`                                Toggle panel visibility
+| Key | Action |
+|---|---|
+| `/` | Open chat mode and focus the input field |
+| `Enter` | Send the current message |
+| `Esc` | Exit chat mode |
+| `F8` | Toggle panel visibility |
 
-  `/rgc`                              List active channels
+### In-Game Chat Commands
 
-  `/rgcc <name>`                      Create a custom channel
+| Command | Action |
+|---|---|
+| `/rgc` | List active channels |
+| `/rgcc <name>` | Create a custom channel |
+| `/rgcj <name>` | Join a custom channel by name |
+| `/rgcp <name>` | Start a private chat with a player |
 
-  `/rgcj <name>`                      Join a channel by name
+Additional actions:
 
-  `/rgcp <name>`                      Private chat with player (or click username)
+- Click a player's name to start a private chat, where supported by the overlay.
+- Use the `(x)` control on a channel tab to leave that channel.
+- When the owner leaves a custom channel, that channel is disbanded.
 
-  `(x)` on a channel tab              Leave a channel; leaving as owner
-                                      disbands it
-  -----------------------------------------------------------------------
+> **Command note:** `/help` and `/rgcl` are supported by the Python test client; they are not listed as in-game commands in this release documentation.
 
 ---
 
@@ -74,211 +93,285 @@ If you see "Server penuh" in the panel, the server has reached capacity — plea
 
 ### Requirements
 
-- **Monster Hunter Rise** (Steam, latest version)
-- **REFramework Nightly 01433+** — [download here](https://github.com/praydog/REFramework-nightly/releases)
-  - **IMPORTANT:** Stable REFramework v1.5.9.1 from Nexus may be too old (Plugin API < 1.15.0). RGC requires Plugin API 1.15.0+, available in REF Nightly 01433+.
-- Windows 10/11 x64
+- Monster Hunter Rise — Steam / PC version.
+- Windows 10 or Windows 11, 64-bit.
+- **REFramework Nightly 01433 or newer**, with Plugin API 1.15.0 or later.
 
-### Steps
+> **Important:** RGC requires the REFramework Plugin API 1.15.0 or later. An older REFramework build may prevent the plugin from loading.
 
-1. **Install REFramework Nightly 01433+** first:
-   - Download `REFramework.zip` from [nightly releases](https://github.com/praydog/REFramework-nightly/releases)
-   - Extract `dinput8.dll` to MHRise root folder (replace old if exists)
-   - Run game once → `reframework/` folder auto-created
-2. **Download** `RiseGlobalChat-v0.6.4.zip`
-3. **Extract** `RiseGlobalChat.dll`
-4. **Copy** to `<Game Directory>\reframework\plugins\`
-5. Run game → RGC panel appears at top-right
+### Install REFramework
 
-**Verify install:** Open `reframework/re2_framework_log.txt`, look for:
-```
-[RGC] Rise Global Chat v0.6.4 - VPS dedicated server
-[RGC] Server target: wss://shyrly.duckdns.org
+1. Download `REFramework.zip` from the [REFramework Nightly Releases](https://github.com/praydog/REFramework-nightly/releases).
+2. Extract `dinput8.dll` into the Monster Hunter Rise game root directory.
+3. Launch the game once so REFramework can create its folders.
+
+### Install RGC
+
+1. Download the `RiseGlobalChat-v0.6.6.zip` package from the RGC release page when it is published.
+2. Extract `RiseGlobalChat.dll` from the package.
+3. Copy the DLL into the following directory:
+
+   `Monster Hunter Rise/reframework/plugins/`
+
+4. Launch the game.
+5. Press `F8` if the RGC panel is not visible.
+
+### Verify Installation
+
+Open the REFramework log file:
+
+`reframework/re2_framework_log.txt`
+
+Look for RGC plugin initialization and the configured production endpoint. Exact log wording may vary by build. The server target should be:
+
+```text
+wss://chat.riseglobalchat.my.id
 ```
 
 ---
 
 ## Configuration
 
-### Player name
-Auto-detected from:
-1. **Steam persona name** (priority)
-2. Windows username (fallback)
-3. `Hunter` (last resort)
+### Player Name
 
-No manual config needed.
+RGC uses a player display name supplied by the client. The server validates and normalizes accepted names. Duplicate names may receive a unique suffix so that connected players can be distinguished.
 
-### Server
-Default: `wss://shyrly.duckdns.org` (dedicated VPS, Ubuntu + Nginx + Let's Encrypt)
-- Max 200 concurrent clients
-- No bandwidth limit
-- Auto-reconnect with exponential backoff
-- Auth token required (bundled in DLL)
+### Server Endpoint
 
-**For custom server:** edit `SERVER_URL` in `dllmain.cpp`, rebuild.
+The official client is configured to use:
+
+```text
+wss://chat.riseglobalchat.my.id
+```
+
+Custom server deployments require a compatible backend and matching authentication configuration. Changing the server URL alone may not be sufficient.
 
 ---
 
-## Building from source
+## Building from Source
 
-These instructions are intended for developers with access to the RGC
-source code.
+This section is intended for developers who have access to the RGC source code and its required dependencies. Build instructions must be followed together with the repository's current `CMakeLists.txt` and `build_deploy.bat` files.
 
 ### Requirements
-- **Visual Studio 2022 Build Tools** (MSVC 19.34+)
-- **CMake** 3.15+
-- **vcpkg** — for IXWebSocket + OpenSSL
-- **REFramework source** — download to `..\..\backup\reframework-src\`
 
-### Setup
+- Visual Studio 2022 Build Tools with the C++ desktop development workload.
+- CMake.
+- vcpkg.
+- REFramework headers/source required by the project.
+- IXWebSocket and its configured TLS dependency.
+- Other dependencies specified by the project's CMake configuration.
+
+### vcpkg Setup
+
+If vcpkg is not already installed:
+
 ```bat
-:: 1. Clone vcpkg (once, outside project)
 git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
 C:\vcpkg\bootstrap-vcpkg.bat
-
-:: 2. Install dependencies (static triplet mandatory)
-C:\vcpkg\vcpkg.exe install ixwebsocket:x64-windows-static
-C:\vcpkg\vcpkg.exe install openssl:x64-windows-static
-
-:: 3. Setup REFramework source
-:: Download REFramework source to: ..\..\backup\reframework-src\
 ```
 
-### Build
-```bat
-:: Edit build_deploy.bat:
-:: - VCPKG_ROOT (default C:\vcpkg)
-:: - PLUGINS_DIR (your MHRise plugins folder)
+The current IXWebSocket build configuration used for RGC is static x64 and uses **mbedTLS** as its TLS backend, with OpenSSL disabled. Install dependencies according to the project's current CMake configuration; do not assume that an OpenSSL package is required.
 
+### Build
+
+Before building, check the paths configured in `build_deploy.bat`, including:
+
+- `VCPKG_ROOT` — vcpkg installation directory.
+- `PLUGINS_DIR` — Monster Hunter Rise `reframework/plugins` directory.
+- REFramework source or header path, if required by the current project configuration.
+
+Run:
+
+```bat
 build_deploy.bat
 ```
 
-Output: build\Release\RiseGlobalChat.dll
+The expected release DLL is:
 
-### Dependencies
-- REFramework by praydog (MIT) — plugin host + ImGui
-- IXWebSocket by Machine Zone (BSD-3-Clause) — WSS/TLS WebSocket client
-- mbedTLS by ARM (Apache 2.0) — TLS backend used by IXWebSocket on Windows
-- OpenSSL (Apache 2.0) — linked via vcpkg (transitive)
-- ImGui by Omar Cornut (MIT) — UI framework
-- nlohmann/json (MIT) — JSON parser
-- MinHook by TsudaKageyu (BSD-2-Clause) — API hooking
+```text
+build/Release/RiseGlobalChat.dll
+```
+
+> Build instructions and dependency versions should be rechecked against the exact source included in the public repository before release.
 
 ---
 
-### Known Issues
+## Dependencies and Third-Party Licenses
 
-## Cursor visibility
-OS cursor may disappear when hovering over RGC panel area. Workaround: click outside panel area, cursor returns. Permanent fix planned for v0.7.0 (separate OS window).
+RGC uses the following third-party components. Refer to the included third-party notices and upstream license files for the applicable terms and notices.
 
-## Alt+Tab while in chat mode
-Chat mode does NOT auto-exit when you alt-tab. After coming back, press / again if input box lost focus.
+| Dependency | Purpose | License |
+|---|---|---|
+| REFramework by praydog | Plugin host and game integration | MIT |
+| IXWebSocket | WebSocket client | BSD-3-Clause |
+| mbedTLS | TLS backend used by the current IXWebSocket build | Apache-2.0 |
+| Dear ImGui | Overlay UI framework | MIT |
+| nlohmann/json | JSON parsing | MIT |
+| MinHook | API hooking | BSD-2-Clause |
+
+OpenSSL is not listed as a direct RGC client dependency in this build configuration because the reviewed IXWebSocket build uses mbedTLS with OpenSSL disabled. Confirm the final dependency notices against the exact release binaries and source before publishing.
+
+---
+
+## Known Issues
+
+### Cursor Visibility
+
+The operating-system cursor may disappear when hovering over part of the RGC panel area.
+
+**Workaround:** Move the cursor outside the panel area. This issue may require a future UI change to resolve fully.
+
+### Alt+Tab While in Chat Mode
+
+Chat mode may not automatically exit when switching to another application. Input focus may need to be restored after returning to the game.
+
+**Workaround:** Press `Esc` to exit chat mode, then press `/` to open it again.
+
+### REFramework DirectX 12 Reset Messages
+
+During testing, REFramework logged `Present failed` and DirectX 12 device-reset messages around application focus or window transitions. RGC networking continued during the observed test, but the exact cause of these graphics messages has not been established.
+
+If these messages affect the game or overlay, include the relevant section of `re2_framework_log.txt` in a bug report. Do not assume that every DirectX or Present message indicates an RGC network failure.
 
 ---
 
 ## Troubleshooting
 
-Panel not appearing / stuck at Disconnected
+### RGC Panel Does Not Appear
 
-Cause: REFramework Plugin API version mismatch. RGC requires Plugin API 1.15.0.
+1. Verify that REFramework is installed and loads correctly.
+2. Verify that `RiseGlobalChat.dll` is in `reframework/plugins/`.
+3. Confirm that the installed REFramework build provides Plugin API 1.15.0 or later.
+4. Check `reframework/re2_framework_log.txt` for plugin-loading errors.
 
-Fix: Download REF Nightly 01433+, replace dinput8.dll in game root, launch game once.
+### RGC Remains Disconnected
 
-Symptoms in log:
-    - [PluginLoader] RiseGlobalChat requires version 1.15.0 followed by silence
-    - OR panel missing entirely
+Check your internet connection and confirm that the client is configured for the official endpoint:
 
-"Auth token tidak valid" error
+```text
+wss://chat.riseglobalchat.my.id
+```
 
-Cause: Using old version (v0.6.3 or earlier — Render URL).
+Then check the REFramework log for WebSocket, TLS, or authentication errors. If the problem persists, report the relevant log entries through GitHub Issues.
 
-Fix: Download v0.6.4 from Nexus Files tab, replace old RiseGlobalChat.dll.
-"Server penuh" in panel
+### Authentication Failed
 
-Server has reached 200 concurrent capacity. Please try again later.
-Chat not reaching other players
-    - Check internet connection
-    - Verify other players are also Connected
-    - Check if in same channel (/rgc to list)
+Use the official client package corresponding to the release. If authentication continues to fail, include the RGC log entries and the client version in your report. Do not post authentication tokens, credentials, or private configuration values in public issues.
 
-Reconnect takes long
-    - After disconnect, reconnect delay grows: 1s, 2s, 4s, 8s, 16s, 32s, up to 60s max
-    - This is intentional (prevent reconnect storm)
-    - Backoff resets to 1s after 30s of stable connection
+### Messages Are Not Reaching Another Player
+
+- Confirm that both clients are connected to RGC.
+- Confirm that both users are in the intended channel or DM.
+- Check whether the other player has disconnected.
+- Check the client log for connection or channel errors.
+
+Players do not need to be in the same Monster Hunter Rise lobby to communicate through RGC, provided both clients are connected to the RGC server.
+
+### Reconnection Takes Longer
+
+RGC uses exponential reconnection backoff with jitter. The delay increases after repeated failures and is capped by the client configuration. This helps avoid repeated connection attempts when the server or network is unavailable.
 
 ---
 
 ## Changelog
 
-See CHANGELOG.md for full version history.
+See [CHANGELOG.md](CHANGELOG.md) for the complete version history.
 
-v0.6.4 highlights:
-    - Migrated to dedicated VPS (200 concurrent, no bandwidth limit)
-    - Server URL: wss://shyrly.duckdns.org
+### v0.6.6 — Public Beta
 
-v0.6.3 highlights:
-    - Local timezone support for chat timestamps
+The v0.6.6 package is intended to provide the current RGC core chat experience for public beta testing. The final release notes must be synchronized with the actual DLL and server changes included in the release.
 
-v0.6.2 highlights:
-    - Auth token + per-IP security
+### v0.6.5
 
-v0.6.1 highlights:
-    - Input bleed fixed (character stays still while typing)
-    - Exponential backoff + jitter for reconnect
+- Added Private Chat (DM) for one-to-one conversations with connected players.
+- Added dedicated DM tabs and automatic switching when a DM is initiated or received.
+- Added unique display-name suffixes to handle duplicate player names.
+- Added a limit of 2 active DM sessions per player and a 10-second cooldown between DM creation requests.
+- Added automatic DM closure when either participant disconnects.
+- Kept DM sessions out of the public channel list.
 
 ---
 
 ## Architecture
 
-- Client: C++ DLL, REFramework plugin, IXWebSocket (WSS/TLS), ImGui overlay
-- Server: Python 3.14 + websockets, systemd, Nginx reverse proxy, Let's Encrypt
-- Protocol: JSON over WebSocket (hello, chat, channel_create, channel_join, channel_leave, ping/pong)
+RGC uses a client-server architecture. The game client maintains its own connection to the RGC backend; chat delivery does not depend on the player's Monster Hunter Rise lobby.
 
-## Privacy and server use
+```text
+Monster Hunter Rise
+        |
+        v
+RGC Client DLL
+(C++ / REFramework / IXWebSocket)
+        |
+        | WSS / TLS
+        v
+Cloudflare Edge
+        |
+        v
+Cloudflare Tunnel
+        |
+        v
+VPS - Python WebSocket Backend
+        |
+        v
+Global Chat / Custom Channels / Private DM
+```
 
-RGC uses a player name and chat messages to provide the chat service.
-These are sent to the RGC server and may be processed in server logs for
-operation and troubleshooting. Do not send passwords, API keys, personal
-information, or other sensitive data through chat.
+### Components
 
-The service is provided as-is. Availability, connection time, and
-capacity may vary, especially while using free-tier hosting. Do not rely
-on the current server capacity statement as a security guarantee or
-service-level commitment.
+- **Client:** C++ REFramework plugin, IXWebSocket, and ImGui overlay.
+- **Server:** Python WebSocket backend running as a systemd service.
+- **Public connectivity:** Cloudflare Tunnel.
+- **Protocol:** JSON messages over WebSocket Secure.
+- **Production endpoint:** `wss://chat.riseglobalchat.my.id`.
+
+The backend handles client authentication, message routing, channel management, private conversations, and connection lifecycle events.
 
 ---
 
-## Feedback
+## Privacy and Server Use
 
-- Nexus comments — general questions
-- GitHub Issues — bug reports, include:
-    1. [RGC] log from re2_framework_log.txt
-    2. Game version (Steam)
-    3. REFramework version (check [REFramework] [info] Tag: in log)
-    4. Steps to reproduce
+RGC processes player display names and chat messages to provide the service. Server-side audit logs may contain information needed for service operation, security monitoring, and troubleshooting, including:
+
+- Player display names.
+- Chat message content.
+- Channel identifiers and channel events.
+- Private-chat participants and related events.
+- Connection and disconnection events.
+
+Do not send passwords, API keys, authentication tokens, personal information, or other sensitive data through RGC.
+
+RGC v0.6.6 does not provide a public user account portal or self-service ban appeal system. The planned v0.6.7 work includes further server security, user identity/authentication improvements, and administrative user-management controls. These planned features are not available in v0.6.6.
+
+The service is provided as-is. Availability and capacity may change without notice. No uptime or service-level guarantee is provided.
+
+---
+
+## Feedback and Bug Reports
+
+Please report bugs through GitHub Issues. Include:
+
+1. RGC-related entries from `re2_framework_log.txt`.
+2. Monster Hunter Rise game version.
+3. REFramework version.
+4. RGC DLL version.
+5. Steps to reproduce the issue.
+6. Whether the issue affects Global Chat, Custom Channels, DM, or connection stability.
+
+For general questions and community feedback, use the Nexus Mods comments section.
+
+**Before sharing logs publicly:** remove authentication tokens, private credentials, IP addresses, or other information that should not be public.
 
 ---
 
 ## License
 
-GNU General Public License v3.0 — see LICENSE file for details.
+RGC is distributed under the **GNU General Public License v3.0**. See the `LICENSE` file for the complete terms.
 
-Attribution requirement: any fork, modification, or derivative work MUST retain the original copyright notice and credit the original author.
-
-Third-party libraries retain their own licenses:
-
-- REFramework (MIT)
-- IXWebSocket (BSD-3-Clause)
-- mbedTLS (Apache 2.0)
-- OpenSSL (Apache 2.0)
-- ImGui (MIT)
-- nlohmann/json (MIT)
-- MinHook (BSD-2-Clause)
+Third-party components remain subject to their respective licenses. Retain the applicable upstream copyright notices and license texts when redistributing those components, as described in the included third-party notices.
 
 ---
 
 ## Credits
 
-RGC uses REFramework and the third-party components listed above. Please
-retain applicable upstream copyright and license notices when
-redistributing those components.
+RGC is built using REFramework and the third-party components listed above. Thanks to their developers and maintainers for making their work available to the community.

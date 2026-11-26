@@ -1,6 +1,6 @@
 // ==================================================
 // RGC - Rise Global Chat
-// v0.6.1 - Input bleed fix + reconnect backoff
+// v0.6.6 - ContaPoD Migration & Client Updates
 //
 // Copyright (C) 2026 Sidik Mulyana
 // SPDX-License-Identifier: GPL-3.0-or-later
@@ -23,9 +23,8 @@
 // ==================================================
 //
 // Technical notes:
-// - Uses IXWebSocket 2.x (WSS native) for networking
-// - On Windows, IXWebSocket uses mbedTLS as TLS backend (not OpenSSL,
-//   though OpenSSL is linked via vcpkg for compatibility)
+// - Uses IXWebSocket 12.0.1 (WSS native) for networking
+// - On Windows, IXWebSocket uses MbedTLS as its TLS backend (vcpkg build).
 // - Uses REFramework on_message callback (no RGC WndProc subclass)
 // - Routes RGC hotkeys through on_message instead of GetAsyncKeyState polling
 // - GetRawInputData/GetRawInputBuffer hooks: diagnostic logging + input
@@ -42,8 +41,6 @@
 
 // WAJIB sebelum <Windows.h>: cegah windows.h meng-include winsock.h lama
 // (konflik dengan winsock2.h yang dibawa IXWebSocket)
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 
@@ -63,7 +60,7 @@
 #include <Windows.h>
 #include <reframework/API.hpp>
 
-// IXWebSocket (WSS/TLS native via OpenSSL)
+// IXWebSocket (WSS/TLS native via MbedTLS)
 #include <ixwebsocket/IXNetSystem.h>
 #include <ixwebsocket/IXWebSocket.h>
 #include <ixwebsocket/IXWebSocketMessage.h>
@@ -90,7 +87,7 @@ using namespace reframework;
 using json = nlohmann::json;
 
 // --- Constants ---
-static const char* SERVER_URL = "wss://shyrly.duckdns.org";
+static const char* SERVER_URL = "wss://chat.riseglobalchat.my.id";
 static std::string g_player_name = "Hunter";
 static const uint64_t WELCOME_TIMEOUT_FRAMES = 600;
 static const uint64_t PING_INTERVAL_FRAMES = 600;
@@ -215,10 +212,10 @@ private:
 // Lihat tools/generate_token.py untuk generate ulang
 // ==================================================
 static const unsigned char RGC_AUTH_TOKEN_ENC[] = {
-    0x38, 0x6D, 0x63, 0x6B, 0x6E, 0x3F, 0x39, 0x69, 0x3B, 0x69, 0x69, 0x39, 0x6A, 0x39, 0x6B, 0x63,
-    0x6A, 0x6A, 0x6F, 0x62, 0x3B, 0x69, 0x3E, 0x6E, 0x63, 0x3F, 0x6D, 0x6A, 0x62, 0x6B, 0x38, 0x38,
-    0x6E, 0x68, 0x6D, 0x62, 0x62, 0x6F, 0x6E, 0x6B, 0x6D, 0x6C, 0x62, 0x6F, 0x6E, 0x6A, 0x6F, 0x3B,
-    0x69, 0x6D, 0x69, 0x6B, 0x3B, 0x63, 0x3C, 0x3C, 0x6A, 0x6A, 0x3E, 0x3E, 0x3E, 0x6D, 0x38, 0x68,
+    0x6C, 0x39, 0x68, 0x3F, 0x6B, 0x69, 0x6A, 0x39, 0x38, 0x3B, 0x38, 0x6C, 0x6A, 0x6F, 0x3C, 0x6F,
+    0x63, 0x38, 0x6E, 0x63, 0x6C, 0x6A, 0x6A, 0x3B, 0x3F, 0x69, 0x3B, 0x68, 0x6E, 0x6B, 0x68, 0x3C,
+    0x6B, 0x63, 0x39, 0x6C, 0x3F, 0x68, 0x39, 0x38, 0x6D, 0x6C, 0x6D, 0x38, 0x6B, 0x6D, 0x3E, 0x63,
+    0x6C, 0x63, 0x3E, 0x6D, 0x62, 0x6F, 0x63, 0x6F, 0x63, 0x62, 0x6D, 0x6D, 0x6D, 0x3C, 0x6C, 0x6B,
 };
 static const size_t RGC_AUTH_TOKEN_LEN = sizeof(RGC_AUTH_TOKEN_ENC);
 static const unsigned char RGC_AUTH_KEY = 0x5A;
@@ -282,7 +279,7 @@ static HWND g_wnd = nullptr;
 lua_State* g_lua = nullptr;
 
 // ==================================================
-// Raw Input diagnostics (logging only; data is never modified)
+// Raw Input diagnostics + keyboard bleed suppression while RGC chat mode is active.
 // ==================================================
 using GetRawInputDataFn = UINT(WINAPI*)(HRAWINPUT, UINT, LPVOID, PUINT, UINT);
 using GetRawInputBufferFn = UINT(WINAPI*)(PRAWINPUT, PUINT, UINT);
@@ -372,7 +369,8 @@ static UINT WINAPI Hooked_GetRawInputBuffer(
     }
 
     // GetRawInputBuffer returns the number of records copied when pData is non-null.
-    // Log keyboard records only; do not alter the buffer or the returned count.
+    // While chat mode is active, keyboard records are marked as key-up to reduce
+    // input bleed into the game. The returned record count is left unchanged.
     if (pData != nullptr && result != static_cast<UINT>(-1) && result > 0) {
         PRAWINPUT current = pData;
         const UINT max_records = (result > 256U) ? 256U : result;
@@ -463,7 +461,7 @@ static void install_raw_input_diagnostics() {
     g_raw_input_diag_installed = data_ok || buffer_ok;
 
     API::get()->log_info(
-        "[RGC-DIAG] Raw Input diagnostics active (data=%s, buffer=%s). Hooks only log; no input is blocked here.",
+        "[RGC-DIAG] Raw Input hooks active (data=%s, buffer=%s). Keyboard suppression follows chat mode.",
         data_ok ? "yes" : "no", buffer_ok ? "yes" : "no");
 }
 
@@ -602,6 +600,34 @@ static std::string resolve_player_name() {
     // --- Last resort ---
     API::get()->log_info("[RGC] Using default name: Hunter");
     return "Hunter";
+}
+
+// Normalize the local player name to the backend allowlist: ASCII letters,
+// digits, spaces, underscore and hyphen; maximum 32 bytes. This prevents a
+// Unicode/special-character Steam persona from being rejected at hello.
+static std::string normalize_player_name(const std::string& raw_name) {
+    std::string normalized;
+    normalized.reserve((raw_name.size() < 32) ? raw_name.size() : 32);
+
+    for (unsigned char ch : raw_name) {
+        const bool is_letter = (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
+        const bool is_digit = (ch >= '0' && ch <= '9');
+        const bool is_allowed = is_letter || is_digit || ch == '_' || ch == '-';
+
+        if (is_allowed) {
+            if (normalized.size() < 32) normalized.push_back(static_cast<char>(ch));
+        } else if (ch == ' ' || ch == '\t') {
+            if (!normalized.empty() && normalized.back() != ' ' && normalized.size() < 32) {
+                normalized.push_back(' ');
+            }
+        }
+    }
+
+    while (!normalized.empty() && normalized.back() == ' ') {
+        normalized.pop_back();
+    }
+
+    return normalized.empty() ? "Hunter" : normalized;
 }
 
 // ==================================================
@@ -1380,7 +1406,7 @@ extern "C" __declspec(dllexport) bool reframework_plugin_initialize(
     auto& api = API::get();
 
     api->log_info("====================================================");
-    api->log_info("[RGC] Rise Global Chat v0.6.5 - private chat");
+    api->log_info("[RGC] Rise Global Chat v0.6.6 - ContaPoD migration");
     api->log_info("[RGC] Compiled against API %d.%d.%d",
         REFRAMEWORK_PLUGIN_VERSION_MAJOR,
         REFRAMEWORK_PLUGIN_VERSION_MINOR,
@@ -1396,7 +1422,7 @@ extern "C" __declspec(dllexport) bool reframework_plugin_initialize(
     g_reconnect_attempt = 0;
     g_next_reconnect_time = std::chrono::steady_clock::now();
 
-    g_player_name = resolve_player_name();
+    g_player_name = normalize_player_name(resolve_player_name());
     api->log_info("[RGC] Player name: %s", g_player_name.c_str());
     api->log_info("[RGC] WndProc subclass disabled; using REFramework on_message");
     api->log_info("====================================================");

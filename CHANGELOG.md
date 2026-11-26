@@ -9,9 +9,48 @@ versioning based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Planned (v0.6.7)
+- Additional server security hardening, building on the authentication and per-IP protections already implemented.
+- Stable user identity and an improved authentication model that does not rely on treating a shared token embedded in the client DLL as a secret.
+- Admin user management: temporary ban, permanent ban, unban/restore, and disconnecting an actively connected banned user.
+- Audit records for moderation actions, including the acting administrator, target user, reason, and duration where applicable.
+- Security, reconnect, integration, and release-package testing for the updated server and client.
+
 ### Planned (v0.7.0)
-- Separate OS window (Win32 + D3D11 swapchain) for chat panel — fixes cursor visibility and enables multi-monitor support
-- Additional hardening for public server deployment (token auth, per-IP rate limit)
+- Separate OS window (Win32 + D3D11 swapchain) for the chat panel — intended to address cursor visibility and support multiple monitors.
+
+---
+
+## [0.6.6] — Pending release
+
+> Draft release notes for the ContaPoD migration and client updates. Confirm these entries against the final source and release build before publishing.
+
+### Added
+- **Server audit logging** — structured JSONL audit records for chat and channel activity, with size-based log rotation.
+- **`rgc-log` administration CLI** — command-line filtering of server audit history by event scope, channel, DM, player, date, and result limit.
+- **Cloudflare Tunnel deployment** — public WSS traffic is routed through Cloudflare Tunnel to the WebSocket backend running locally on the VPS.
+
+### Changed
+- **Production VPS migration** — migrated the production backend to the ContaPoD VPS.
+- **Production endpoint** — changed the client/server endpoint from `wss://shyrly.duckdns.org` to `wss://chat.riseglobalchat.my.id`.
+- **Public ingress architecture** — replaced the previous Nginx/Let's Encrypt origin setup with Cloudflare Tunnel (`cloudflared`) forwarding to the local backend service.
+- **Client player-name handling** — normalize the detected player name to the server's accepted character set and length before authentication.
+- **Windows build configuration** — align the CMake configuration with the static x64 IXWebSocket build using mbedTLS as its TLS backend; OpenSSL is disabled in the inspected IXWebSocket build configuration.
+- **Client IP detection behind Cloudflare** — use the Cloudflare-provided client IP header for per-IP controls instead of relying on the former Nginx `X-Forwarded-For` path.
+
+### Verified
+- Production WSS connection and client authentication.
+- Two-way Python CLI ↔ in-game communication for Global Chat, Custom Channels, and Private DM.
+- Custom channel creation, joining, leaving, owner disband, and related membership notifications.
+- DM conversation, partner-close notification, and channel cleanup.
+- Python test-client graceful disconnect using `/quit`.
+
+### Breaking / Upgrade Notes
+- The production endpoint changed. Clients still configured for `wss://shyrly.duckdns.org` must be upgraded to a build configured for `wss://chat.riseglobalchat.my.id`.
+
+### Notes
+- Temporary ban, permanent ban, unban/restore, and expanded admin user management are **not included** in v0.6.6; they are planned for v0.6.7.
+- v0.6.6 is intended as the Public Beta release for community testing. This label describes the release channel, not a new chat feature.
 
 ---
 
@@ -32,7 +71,7 @@ versioning based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 - `server.py` — v0.9.1 (DM support, was v0.9)
 - `dllmain.cpp` — v0.6.5 (private chat UI + handler)
-- `test_client_v2.py` — added `/rgdm <name>` command for CLI testing
+- `test_client_v2.py` — added `/rgcp <name>` command for CLI testing
 
 ### Behavior
 - **DM close**: clicking `x` on DM tab, `/rgcl` command, or partner disconnect → DM disbanded for both users with system notification
@@ -271,15 +310,20 @@ versioning based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Version History Summary
 
-| Version | Date | Highlights |
+| Version | Date / Status | Highlights |
 |---|---|---|
-| **v0.6.1** | 2026-10-25 | Input bleed fix, exponential backoff + jitter |
-| **v0.6.0** | 2026-10-24 | IXWebSocket migration, server event loop fix, WSS production |
-| **v0.5.5** | 2026-10-23 | Channel system |
-| **v0.5** | 2026-10-23 | ImGui UI |
-| **v0.4** | 2026-10-23 | Functional chat (F9) |
-| **v0.3** | 2026-10-23 | WebSocket + application handshake baseline |
-| **v0.1** | 2026-10-23 | Minimal plugin skeleton |
+| **v0.6.6** | Pending release | ContaPoD migration, Cloudflare Tunnel, client endpoint/build updates, server audit logging |
+| **v0.6.5** | 2026-11-11 | Private Chat (DM), name collision handling |
+| **v0.6.4** | 2026-10-27 | Migration from Render to a dedicated VPS |
+| **v0.6.3** | 2026-10-26 | Local timezone support for chat timestamps |
+| **v0.6.2** | 2026-10-26 | Authentication token validation and per-IP protections |
+| **v0.6.1** | 2026-10-25 | Input bleed fix, exponential reconnect backoff + jitter |
+| **v0.6.0** | 2026-10-24 | IXWebSocket migration and WSS support |
+| **v0.5.5** | 2026-10-23 | Custom channel system and tab bar |
+| **v0.5** | 2026-10-23 | ImGui overlay UI |
+| **v0.4** | 2026-10-23 | Functional chat and Python CLI test client |
+| **v0.3** | 2026-10-23 | WebSocket application handshake and multi-client baseline |
+| **v0.1** | 2026-10-23 | Minimal REFramework plugin skeleton |
 
 **Note:** v0.2 was never released (used unreliable `getReadyState()`, superseded by v0.3's application-level handshake).
 
@@ -290,15 +334,20 @@ versioning based on [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### From v0.5.x to v0.6.x
 
 **Build system changes:**
-- Requires vcpkg with `ixwebsocket:x64-windows-static` and `openssl:x64-windows-static`
-- `CMakeLists.txt` now needs `-DCMAKE_TOOLCHAIN_FILE` + `-DVCPKG_TARGET_TRIPLET=x64-windows-static`
-- `build_deploy.bat` updated to include vcpkg toolchain flags
-- `thirdparty/easywsclient.cpp` and `.hpp` are no longer used — safe to delete
+- Uses the static x64 IXWebSocket build through vcpkg (`x64-windows-static`).
+- The inspected IXWebSocket build configuration enables `USE_MBED_TLS` and disables `USE_OPEN_SSL`; follow the current `CMakeLists.txt` and `build_deploy.bat` rather than adding an OpenSSL dependency by assumption.
+- `CMakeLists.txt` and `build_deploy.bat` must use the configured vcpkg toolchain and x64 static triplet.
+- `thirdparty/easywsclient.cpp` and `.hpp` are no longer used by the IXWebSocket-based client.
 
 **Runtime changes:**
-- Server URL changed from `ws://127.0.0.1:8765` to `wss://rgc-server.onrender.com` for production
-- For local development, revert to `ws://127.0.0.1:8765` in `SERVER_URL` constant
+- Production endpoint history: `ws://127.0.0.1:8765` (local development) → `wss://rgc-server.onrender.com` (v0.6.0) → `wss://shyrly.duckdns.org` (v0.6.4) → `wss://chat.riseglobalchat.my.id` (v0.6.6).
+- The v0.6.6 client is configured for the current production endpoint. For local development, use the local WebSocket endpoint in the source configuration.
+- The current production deployment uses Cloudflare Tunnel to route public WSS traffic to the local backend service on the VPS.
 
 **Behavioral changes:**
-- Reconnect now uses exponential backoff (up to 60s between attempts) instead of fixed 5s interval
-- Chat input in chat mode no longer triggers in-game actions (v0.6.1)
+- Reconnect uses exponential backoff (up to 60s) with jitter instead of a fixed 5-second interval (v0.6.1).
+- Chat input mode suppresses the relevant in-game input actions (v0.6.1).
+- Player names are normalized on the client to match server validation rules (v0.6.6).
+
+**Upgrade from v0.6.5 to v0.6.6:**
+- Replace the old DLL with the v0.6.6 build to use the current production endpoint. No manual server URL edit should be required for the official release build.
